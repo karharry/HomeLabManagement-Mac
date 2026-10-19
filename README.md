@@ -1,9 +1,10 @@
-# HomeLab Management
+# HomeLab Management — macOS
 
-A native app — for **macOS** and **Windows** — for monitoring and managing a home
+> Looking for Windows? See **[HomeLabManagement-Windows](https://github.com/karharry/HomeLabManagement-Windows)**.
+
+A native macOS app for monitoring and managing a home
 lab: TrueNAS SCALE, Linux (Debian/Ubuntu, Raspberry Pi OS, Arch), Windows, Mac,
-and OPNsense machines, all from one sidebar. Pick
-whichever platform runs on the computer you want the app itself to live on.
+and OPNsense machines, all from one sidebar.
 
 > **Project status:** This is a personal tool I built for my own home lab and
 > am sharing as-is, in case it's useful to someone else. I have a full-time
@@ -12,20 +13,7 @@ whichever platform runs on the computer you want the app itself to live on.
 > for my own setup; your mileage may vary. Forks and PRs are welcome if you
 > want to extend it yourself, but I can't commit to maintaining it actively.
 
-## Which build do I want?
-
-| | macOS app | Windows app |
-|---|---|---|
-| Location | [`App/`](App), [`Shared/`](Shared), [`Widgets/`](Widgets) | [`Windows/`](Windows) |
-| Built with | Swift / SwiftUI | Python / PySide6 |
-| Install | Homebrew cask, or a signed `.app` | Single portable `.exe`, no installer |
-| Desktop widgets | Yes (WidgetKit) | No direct equivalent — a system tray icon shows status instead |
-| Credential storage | macOS Keychain | Plain-text `settings.json` beside the exe |
-| OPNsense support | Yes — native REST API | Yes — native REST API |
-
-Everything else — which machine kinds you can add, what each one's pages show,
-VPN/fan-control/console/etc. — is the same app design, independently
-implemented per platform. Both are covered below.
+The Windows version lives in its own repo: [HomeLabManagement-Windows](https://github.com/karharry/HomeLabManagement-Windows).
 
 ## Features
 
@@ -59,8 +47,6 @@ implemented per platform. Both are covered below.
 
 ## Installation
 
-### macOS
-
 **Homebrew (recommended):**
 
 ```bash
@@ -72,17 +58,7 @@ brew install --cask homelabmanagement
 [Releases](../../releases) page, unzip, and move `HomeLab Management.app` to
 `/Applications`.
 
-### Windows
-
-Download `HomeLabManagement.exe` from the [Releases](../../releases) page and
-run it — it's a single portable file with no installer and no extra runtime
-to install. Copy it anywhere (including a USB stick or another PC) and it
-keeps working; a `settings.json` file is created next to it on first use to
-hold your machine list and credentials.
-
 ## Building from source
-
-### macOS
 
 Requires Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
@@ -93,20 +69,6 @@ open HomeLabManagement.xcodeproj
 
 The project uses [Citadel](https://github.com/orlandos-nl/Citadel) for SSH,
 resolved automatically via Swift Package Manager on first build.
-
-### Windows
-
-Requires Python 3.11+. From the [`Windows/`](Windows) directory:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\pip install -r requirements.txt
-.\.venv\Scripts\python app.py        # run from source
-.\build.ps1                          # or build dist\HomeLabManagement.exe
-```
-
-See [`Windows/README.md`](Windows/README.md) for more on the Windows build's
-architecture.
 
 ## How it works
 
