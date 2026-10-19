@@ -19,6 +19,7 @@ enum NavItem: String, Identifiable, Hashable, CaseIterable {
     case raspberryPi = "Raspberry Pi"
     case vpn = "VPN"
     case dhcpLeases = "DHCP Leases", localDNS = "Local DNS", dnsmasqHosts = "Static Hosts"
+    case history = "History"
     var id: String { rawValue }
     var icon: String {
         switch self {
@@ -54,6 +55,7 @@ enum NavItem: String, Identifiable, Hashable, CaseIterable {
         case .dhcpLeases: "list.bullet.rectangle"
         case .localDNS: "text.book.closed"
         case .dnsmasqHosts: "pin"
+        case .history: "chart.xyaxis.line"
         }
     }
     var urlName: String { rawValue.lowercased().replacingOccurrences(of: " ", with: "") }
@@ -67,7 +69,7 @@ let navGroups: [(title: String?, items: [NavItem])] = [
     ("Software", [.apps, .vms, .containers, .startup, .software, .scheduledTasks, .updates]),
     ("Network", [.network, .dhcpLeases, .dnsmasqHosts, .localDNS, .pihole, .tailscale, .vpn, .pikvm]),
     ("Data", [.datasets, .shares, .dataProtection]),
-    ("System", [.processes, .services, .logs, .users, .console]),
+    ("System", [.history, .processes, .services, .logs, .users, .console]),
     (nil, [.alerts]),
 ]
 
@@ -156,6 +158,8 @@ class MachineSession: Identifiable {
     /// Watts, where the kind can read it (LibreHardwareMonitor Power sensors, Intel RAPL). nil = no data.
     var powerWatts: Double?
     var lastRefresh: Date?
+    /// When the current run of failed polls began (nil while online); drives the "offline after N minutes" alert.
+    var failedSince: Date?
     var actionError: String?
 
     // Loaded on demand
@@ -180,18 +184,19 @@ class MachineSession: Identifiable {
 
     var alerts: [AlertItem] {
         var a = extraAlerts
-        if case .failed(let m) = state, lastRefresh != nil {
+        let t = AlertThresholds.current
+        if case .failed(let m) = state, lastRefresh != nil, let since = failedSince, Date().timeIntervalSince(since) >= t.offlineMinutes * 60 {
             a.append(.init(id: "offline", level: .critical, title: "Can't reach \(displayName)", detail: m))
         }
-        for item in storage where item.usedFraction >= 0.85 {
-            a.append(.init(id: "storage-\(item.id)", level: item.usedFraction >= 0.95 ? .critical : .warning,
+        for item in storage where item.usedFraction >= t.storage {
+            a.append(.init(id: "storage-\(item.id)", level: item.usedFraction >= max(0.95, t.storage) ? .critical : .warning,
                            title: "\(item.title) is \(Int(item.usedFraction * 100))% full",
                            detail: "\(Fmt.bytes(item.size - item.used)) free"))
         }
         for item in storage where !item.healthy {
             a.append(.init(id: "unhealthy-\(item.id)", level: .critical, title: "\(item.title): \(item.statusText)", detail: item.subtitle))
         }
-        if memTotal > 0, memUsedFraction >= 0.92 {
+        if memTotal > 0, memUsedFraction >= t.memory {
             a.append(.init(id: "mem", level: .warning, title: "Memory is \(Int(memUsedFraction * 100))% used", detail: "\(Fmt.bytes(memTotal - memUsed)) available"))
         }
         return a.sorted { $0.level > $1.level }
@@ -216,7 +221,10 @@ class MachineSession: Identifiable {
                 let ok = await self.poll()
                 if Task.isCancelled { return }
                 failures = ok ? 0 : failures + 1
-                let base = self.isForeground ? 4.0 : 15.0
+                if ok { self.failedSince = nil; History.record(self) } else if self.failedSince == nil { self.failedSince = Date() }
+                Notifier.check(self)
+                // Nobody is watching with every window closed or minimized, so the Dock/widgets only need coarse status.
+                let base = AppModel.windowVisible ? (self.isForeground ? 4.0 : 15.0) : 30.0
                 try? await Task.sleep(for: .seconds(ok ? base : min(Double(failures) * 5 + base, 60)))
             }
         }
@@ -228,7 +236,10 @@ class MachineSession: Identifiable {
         state = .disconnected
     }
 
-    func forgetHostKey() { UserDefaults.standard.removeObject(forKey: "sshHostKey.\(machine.host):\(effectiveSSHPort)") }
+    func forgetHostKey() {
+        UserDefaults.standard.removeObject(forKey: "sshHostKey.\(machine.host):\(effectiveSSHPort)")
+        TLSPin.forget(host: machine.host, port: machine.port)
+    }
     var effectiveSSHPort: Int { kind == .truenas ? machine.sshPort : machine.port }
 
     func push(_ arr: inout [Double], _ v: Double?, limit: Int = historyLength) {

@@ -101,6 +101,13 @@ struct MachineEditor: View {
                 }
             }
 
+            Section("Wake-on-LAN (optional)") {
+                TextField("MAC address", text: $machine.mac, prompt: Text("AA:BB:CC:DD:EE:FF"))
+                if !machine.mac.isEmpty, WakeOnLAN.parse(machine.mac) == nil {
+                    Text("Not a valid MAC address (expected like AA:BB:CC:DD:EE:FF).").font(.caption).foregroundStyle(.red)
+                }
+            }
+
             Section {
                 HStack {
                     Button("Test Connection") { Task { await test() } }.disabled(testing || !machine.isValid)
@@ -108,8 +115,9 @@ struct MachineEditor: View {
                     if let testResult { Text(testResult).font(.caption).foregroundStyle(testResult.hasPrefix("OK") ? .green : .red) }
                 }
                 if existing != nil {
-                    Button("Forget pinned SSH host key", role: .destructive) {
+                    Button("Forget pinned SSH host key / TLS certificate", role: .destructive) {
                         UserDefaults.standard.removeObject(forKey: "sshHostKey.\(machine.host):\(machine.kind == .truenas ? machine.sshPort : machine.port)")
+                        TLSPin.forget(host: machine.host, port: machine.port)
                     }
                 }
             }
@@ -121,10 +129,11 @@ struct MachineEditor: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
+                    machine.mac = machine.mac.trimmingCharacters(in: .whitespaces)
                     model.upsert(machine, secret: secret, sshPassword: sshPassword, fanPassword: fanPassword,
                                  piholePassword: [.raspios, .arch, .debian].contains(machine.kind) ? piholePassword : nil)
                     dismiss()
-                }.disabled(!machine.isValid)
+                }.disabled(!machine.isValid || !(machine.mac.isEmpty || WakeOnLAN.parse(machine.mac) != nil))
             }
         }
     }

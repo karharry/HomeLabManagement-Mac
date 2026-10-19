@@ -31,7 +31,7 @@ extension MachineKind {
         default:
             [.dashboard, .storage, .processes, .services, .scheduledTasks, .updates, .logs, .users, .console, .alerts]
         }
-        return sortNavItems(items)
+        return sortNavItems(items + [.history])
     }
 }
 
@@ -63,6 +63,9 @@ struct Machine: Codable, Identifiable, Hashable, Sendable {
 
     var webUrl = ""
 
+    /// For Wake-on-LAN.
+    var mac = ""
+
     /// Explicit memberwise-style init, since the custom `init(from:)` below suppresses Swift's
     /// automatic one.
     init() {}
@@ -90,11 +93,20 @@ struct Machine: Codable, Identifiable, Hashable, Sendable {
         useSudo = try c.decodeIfPresent(Bool.self, forKey: .useSudo) ?? true
         lhmPort = try c.decodeIfPresent(Int.self, forKey: .lhmPort) ?? 0
         webUrl = try c.decodeIfPresent(String.self, forKey: .webUrl) ?? ""
+        mac = try c.decodeIfPresent(String.self, forKey: .mac) ?? ""
     }
 
     var displayName: String {
         let n = name.trimmingCharacters(in: .whitespaces)
         return n.isEmpty ? (host.isEmpty ? kind.label : host) : n
+    }
+    /// The admin page to open: the configured link, else the API host for kinds that are web-first.
+    var webAddress: URL? {
+        let w = webUrl.trimmingCharacters(in: .whitespaces)
+        if !w.isEmpty { return URL(string: w) }
+        let h = host.trimmingCharacters(in: .whitespaces)
+        guard (kind == .truenas || kind == .opnsense), !h.isEmpty else { return nil }
+        return URL(string: "\(useTLS ? "https" : "http")://\(h):\(port)")
     }
     var pinKey: String { "\(host):\(kind == .truenas ? port : port)" }
     var isValid: Bool {

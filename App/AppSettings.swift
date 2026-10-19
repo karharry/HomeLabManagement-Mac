@@ -6,6 +6,8 @@ import ServiceManagement
 /// so there's no separate "quit on close" behavior to manage here.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Notifier.requestAuthorization()
+        Task { try? await Task.sleep(for: .seconds(5)); await UpdateCheck.presentResult(verbose: false) }
         guard UserDefaults.standard.bool(forKey: "openMinimized") else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             NSApp.windows.forEach { $0.miniaturize(nil) }

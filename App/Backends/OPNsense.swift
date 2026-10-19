@@ -13,8 +13,10 @@ actor OPNsenseClient {
     private let base: String
     private let auth: String
     private let session: URLSession
+    private let host: String, port: Int, pinned: Bool
 
     init(host: String, port: Int, key: String, secret: String, useTLS: Bool, allowSelfSigned: Bool) {
+        self.host = host; self.port = port; pinned = useTLS && allowSelfSigned
         base = "\(useTLS ? "https" : "http")://\(host):\(port)/api"
         auth = "Basic " + Data("\(key):\(secret)".utf8).base64EncodedString()
         session = URLSession(configuration: .ephemeral, delegate: TrustDelegate(allowSelfSigned: allowSelfSigned), delegateQueue: nil)
@@ -34,7 +36,10 @@ actor OPNsenseClient {
         }
         let data: Data, resp: URLResponse
         do { (data, resp) = try await session.data(for: req) }
-        catch { throw OPNsenseError("Couldn't reach \(url.absoluteString): \(error.localizedDescription)") }
+        catch {
+            if pinned, let m = TLSPin.mismatchMessage(host: host, port: port) { throw OPNsenseError(m) }
+            throw OPNsenseError("Couldn't reach \(url.absoluteString): \(error.localizedDescription)")
+        }
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if code == 401 { throw OPNsenseError("Authentication failed: check the API key and secret.") }
         if code >= 400 { throw OPNsenseError("OPNsense returned HTTP \(code) for \(path).") }

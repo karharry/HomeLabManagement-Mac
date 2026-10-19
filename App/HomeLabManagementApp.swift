@@ -14,7 +14,13 @@ struct HomeLabManagementApp: App {
         }
         .windowResizability(.contentSize)
         .commands {
-            CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .newItem) {
+                Button("Export Machines\u{2026}") { MachineTransfer.export(model.machines) }
+                Button("Import Machines\u{2026}") { MachineTransfer.importFile(into: model) }
+            }
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates\u{2026}") { Task { await UpdateCheck.presentResult(verbose: true) } }
+            }
         }
 
         Settings {

@@ -2,6 +2,7 @@ import Foundation
 
 enum TrueNASError: LocalizedError {
     case notConnected, timeout, badResponse
+    case tls(String)
     case auth(String)
     case rpc(code: Int, message: String)
 
@@ -10,6 +11,7 @@ enum TrueNASError: LocalizedError {
         case .notConnected: "Not connected to TrueNAS."
         case .timeout: "The request timed out."
         case .badResponse: "Unexpected response from TrueNAS."
+        case .tls(let m): m
         case .auth(let m): "Authentication failed: \(m)"
         case .rpc(_, let m): m
         }
@@ -32,19 +34,25 @@ struct TrueNASConnectionConfig: Sendable, Equatable {
     }
 }
 
+/// Accepts a self-signed certificate only if it matches the one pinned on first use (see `TLSPin`).
 final class TrustDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
     let allowSelfSigned: Bool
     init(allowSelfSigned: Bool) { self.allowSelfSigned = allowSelfSigned }
 
     func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
                     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        if allowSelfSigned,
-           challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-           let trust = challenge.protectionSpace.serverTrust {
-            completionHandler(.useCredential, URLCredential(trust: trust))
-        } else {
+        let space = challenge.protectionSpace
+        guard allowSelfSigned, space.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = space.serverTrust else {
             completionHandler(.performDefaultHandling, nil)
+            return
         }
+        guard let leaf = (SecTrustCopyCertificateChain(trust) as? [SecCertificate])?.first,
+              TLSPin.check(SecCertificateCopyData(leaf) as Data, host: space.host, port: space.port) else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        completionHandler(.useCredential, URLCredential(trust: trust))
     }
 }
 
@@ -71,6 +79,14 @@ actor TrueNASClient {
     }
 
     func connect(_ config: TrueNASConnectionConfig) async throws {
+        do { try await open(config) }
+        catch {
+            if config.allowSelfSigned, let m = TLSPin.mismatchMessage(host: config.host, port: config.port) { throw TrueNASError.tls(m) }
+            throw error
+        }
+    }
+
+    private func open(_ config: TrueNASConnectionConfig) async throws {
         guard let url = config.url else { throw TrueNASError.badResponse }
         let s = URLSession(configuration: .ephemeral,
                            delegate: TrustDelegate(allowSelfSigned: config.allowSelfSigned),

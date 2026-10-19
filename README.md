@@ -44,6 +44,16 @@ The Windows version lives in its own repo: [HomeLabManagement-Windows](https://g
   at-a-glance status from a **system tray icon** instead, since Windows has no
   WidgetKit equivalent
 - **Open at Login** / **Open Minimized** options on both platforms
+- **History**: CPU, memory and network over the last 24 hours or 7 days, kept
+  locally in SQLite (one sample per minute per machine)
+- **Notifications** when a machine goes offline, comes back, or raises a new
+  alert, with configurable storage / memory / offline thresholds in Settings
+- **TLS certificate pinning** (trust on first use) for self-signed
+  TrueNAS and OPNsense certificates, like the existing SSH host key pinning
+- **Wake-on-LAN**, **Open Web UI**, and **export / import** of your machine
+  list (passwords and API secrets are never exported)
+- **Update check** against GitHub Releases (File menu → Check for Updates)
+- Slower background polling while every window is closed or minimized
 
 ## Installation
 
@@ -58,6 +68,15 @@ brew install --cask homelabmanagement
 [Releases](../../releases) page, unzip, and move `HomeLab Management.app` to
 `/Applications`.
 
+## What's new in 1.2.0
+
+Brings the Mac app up to the Windows build's 1.4.0 feature set: History page,
+notifications and alert thresholds, TLS certificate pinning, Wake-on-LAN, Open
+Web UI, machine export/import, update check, and slower polling while hidden.
+If a self-signed TrueNAS/OPNsense certificate is later renewed, use **Forget
+pinned SSH host key / TLS certificate** in that machine's Edit sheet to trust
+the new one. See the [release notes](../../releases) for details.
+
 ## Building from source
 
 Requires Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
@@ -69,6 +88,27 @@ open HomeLabManagement.xcodeproj
 
 The project uses [Citadel](https://github.com/orlandos-nl/Citadel) for SSH,
 resolved automatically via Swift Package Manager on first build.
+
+## Dependencies
+
+Swift packages, resolved automatically by Swift Package Manager (versions as
+pinned in `Package.resolved`):
+
+| Package | Version | Used for |
+|---|---|---|
+| [Citadel](https://github.com/orlandos-nl/Citadel) | 0.12.1 | SSH client (the only direct dependency, declared in `project.yml`) |
+| [swift-nio-ssh](https://github.com/Wellz26/swift-nio-ssh) | 0.3.7 | SSH protocol (via Citadel) |
+| [swift-nio](https://github.com/apple/swift-nio) | 2.104.0 | Networking (via Citadel) |
+| [swift-crypto](https://github.com/apple/swift-crypto) | 3.15.1 | Cryptography (via Citadel) |
+| [BigInt](https://github.com/attaswift/BigInt) | 5.7.0 | Big-integer maths for SSH keys (via Citadel) |
+| swift-asn1, swift-atomics, swift-collections, swift-log, swift-system | — | Supporting Apple packages (via Citadel / swift-nio) |
+
+Everything else uses Apple frameworks that ship with macOS: SwiftUI, Swift
+Charts, WidgetKit, CryptoKit, UserNotifications, SQLite3, and the Keychain.
+
+Build tooling: Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+Target machines have their own requirements (e.g. an SSH server) — see the
+setup hints in each machine's Add Machine sheet.
 
 ## How it works
 

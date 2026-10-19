@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import Observation
 import WidgetKit
 
@@ -14,6 +15,8 @@ final class AppModel {
         if selectedID == nil || sessions[selectedID!] == nil { selectedID = machines.first?.id }
         markForeground()
     }
+
+    static var windowVisible: Bool { NSApp.windows.contains { $0.isVisible && !$0.isMiniaturized } }
 
     var selected: MachineSession? { selectedID.flatMap { sessions[$0] } }
     var orderedSessions: [MachineSession] { machines.compactMap { sessions[$0.id] } }
@@ -108,6 +111,15 @@ final class AppModel {
         guard let i = machines.firstIndex(where: { $0.id == id }), i < machines.count - 1 else { return }
         machines.swapAt(i, i + 1)
         MachineStore.save(machines)
+    }
+
+    /// Adds the machines from an exported list. Never overwrites an existing machine (or its stored passwords).
+    func importMachines(_ imported: [Machine]) {
+        let existing = Set(machines.map(\.id))
+        for var m in imported {
+            if existing.contains(m.id) { m.id = UUID() }
+            upsert(m, secret: "")
+        }
     }
 
     func publish() {

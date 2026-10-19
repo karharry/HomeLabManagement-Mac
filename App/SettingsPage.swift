@@ -3,6 +3,10 @@ import SwiftUI
 struct SettingsPage: View {
     @AppStorage("openAtLogin") private var openAtLogin = false
     @AppStorage("openMinimized") private var openMinimized = false
+    @AppStorage("notifications") private var notifications = true
+    @AppStorage("alertStoragePct") private var storagePct = 85.0
+    @AppStorage("alertMemPct") private var memPct = 92.0
+    @AppStorage("alertOfflineMinutes") private var offlineMinutes = 0.0
     @State private var loginItemError: String?
 
     var body: some View {
@@ -24,10 +28,18 @@ struct SettingsPage: View {
                     Text(loginItemError).font(.caption).foregroundStyle(.orange)
                 }
             }
+            Section("Alerts") {
+                Toggle("Notify when a machine goes offline or raises an alert", isOn: $notifications)
+                Stepper("Storage alert at \(Int(storagePct))% full", value: $storagePct, in: 50...99)
+                Stepper("Memory alert at \(Int(memPct))% used", value: $memPct, in: 50...99)
+                Stepper(offlineMinutes == 0 ? "Offline alert: immediately" : "Offline alert after \(Int(offlineMinutes)) min",
+                        value: $offlineMinutes, in: 0...120)
+            }
+            Text("HomeLab Management \(UpdateCheck.current)").font(.caption).foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
         .padding(20)
-        .frame(width: 420, height: 220)
+        .frame(width: 460, height: 420)
         .onAppear { openAtLogin = LoginItem.isEnabled }
     }
 }

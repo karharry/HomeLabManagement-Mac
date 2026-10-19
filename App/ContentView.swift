@@ -4,6 +4,7 @@ struct ContentView: View {
     @Environment(AppModel.self) private var model
     @State private var selection: NavItem? = .dashboard
     @State private var sheet: MachineSheet?
+    @State private var wakeMessage: String?
 
     var body: some View {
         NavigationSplitView {
@@ -31,6 +32,9 @@ struct ContentView: View {
                 OverviewPage()
             }
         }
+        .alert("Wake-on-LAN", isPresented: Binding(get: { wakeMessage != nil }, set: { if !$0 { wakeMessage = nil } })) {
+            Button("OK") {}
+        } message: { Text(wakeMessage ?? "") }
         .sheet(item: $sheet) { sh in
             switch sh { case .add: MachineEditor(existing: nil); case .edit(let m): MachineEditor(existing: m) }
         }
@@ -39,6 +43,11 @@ struct ContentView: View {
             else if url.host() == "overview" { model.select(nil) }
             else if let n = NavItem.allCases.first(where: { $0.urlName == url.host() }) { selection = n }
         }
+    }
+
+    private func wake(_ s: MachineSession) {
+        do { try WakeOnLAN.wake(s.machine.mac); wakeMessage = "Wake packet sent to \(s.displayName)." }
+        catch { wakeMessage = "Wake-on-LAN failed: \(error.localizedDescription)" }
     }
 
     private var sidebar: some View {
@@ -63,6 +72,8 @@ struct ContentView: View {
                         if let proto = s.kind.remoteDesktopProtocol {
                             Button(proto == .rdp ? "Connect via RDP" : "Connect via Screen Sharing") { RemoteDesktop.connect(to: s.machine) }
                         }
+                        if let url = s.machine.webAddress { Button("Open Web UI") { NSWorkspace.shared.open(url) } }
+                        if !s.machine.mac.isEmpty { Button("Wake (Wake-on-LAN)") { wake(s) } }
                         Divider()
                         Button("Move Up") { model.moveUp(s.id) }.disabled(!model.canMoveUp(s.id))
                         Button("Move Down") { model.moveDown(s.id) }.disabled(!model.canMoveDown(s.id))
@@ -120,6 +131,7 @@ struct ContentView: View {
     private func detail(_ s: MachineSession) -> some View {
         switch selection ?? .dashboard {
         case .dashboard: DashboardPage()
+        case .history: HistoryPage()
         case .storage: StoragePage()
         case .processes: ProcessesPage()
         case .services: ServicesPage()
