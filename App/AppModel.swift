@@ -5,6 +5,8 @@ import WidgetKit
 
 @MainActor @Observable
 final class AppModel {
+    static let shared = AppModel()
+
     private(set) var machines: [Machine] = MachineStore.load()
     private(set) var sessions: [UUID: MachineSession] = [:]
     var selectedID: UUID? = MachineStore.selectedID

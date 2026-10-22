@@ -43,7 +43,11 @@ The Windows version lives in its own repo: [HomeLabManagement-Windows](https://g
   an all-machines overview widget); the Windows build shows the same
   at-a-glance status from a **system tray icon** instead, since Windows has no
   WidgetKit equivalent
-- **Open at Login** / **Open Minimized** options on both platforms
+- **Open at Login** / **Open Minimized** options on both platforms (the Mac also has **Open in Menu Bar**)
+- **Menu bar item** showing the number of machines and alerts. Closing the
+  window keeps the app running there (no Dock icon unless you minimize);
+  left-click opens the window, right-click gives Show Window / Preferences /
+  Quit. Choose **Open Minimized** or **Open in Menu Bar** as the start mode.
 - **History**: CPU, memory and network over the last 24 hours or 7 days, kept
   locally in SQLite (one sample per minute per machine)
 - **Notifications** when a machine goes offline, comes back, or raises a new
@@ -68,107 +72,20 @@ brew install --cask homelabmanagement
 [Releases](../../releases) page, unzip, and move `HomeLab Management.app` to
 `/Applications`.
 
-## What's new in 1.2.0
+## What's new
 
-Brings the Mac app up to the Windows build's 1.4.0 feature set: History page,
-notifications and alert thresholds, TLS certificate pinning, Wake-on-LAN, Open
-Web UI, machine export/import, update check, and slower polling while hidden.
-If a self-signed TrueNAS/OPNsense certificate is later renewed, use **Forget
-pinned SSH host key / TLS certificate** in that machine's Edit sheet to trust
-the new one. See the [release notes](../../releases) for details.
+**1.3.0** adds a menu bar item with the machine and alert counts that keeps
+the app running after the window is closed, and an **Open in Menu Bar** start
+option (mutually exclusive with Open Minimized).
 
-## Requirements and per-machine setup
+**1.2.0** brought the Mac app up to the Windows build's 1.4.0 feature set:
+History page, notifications and alert thresholds, TLS certificate pinning,
+Wake-on-LAN, Open Web UI, machine export/import, update check, and slower
+polling while hidden. If a self-signed TrueNAS/OPNsense certificate is later
+renewed, use **Forget pinned SSH host key / TLS certificate** in that
+machine's Edit sheet to trust the new one.
 
-The app itself needs nothing beyond macOS 14 (Sonoma) or later. Each machine you add needs a little
-setup on **that machine**; everything below is optional unless marked required.
-
-### All SSH-managed machines (Linux, Windows, macOS)
-
-- **An SSH server reachable from the Mac running the app (required)**, with password
-  authentication enabled (`PasswordAuthentication yes` in `sshd_config`). Host keys are
-  pinned on first connect.
-- **sudo**: Linux/macOS actions that need root (services, updates, Docker, VMs, WireGuard,
-  etc.) use `sudo` with the SSH password. The user must be allowed to sudo; untick
-  "Use sudo" in the machine editor if you log in as root.
-
-### Windows machines
-
-- **OpenSSH Server** installed and running: *Settings → Apps → Optional features → OpenSSH
-  Server*, then start the `sshd` service and set it to Automatic.
-- **[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)**
-  for temperatures, fan speeds, clocks and power (Sensors/CPU/GPU/Power pages). Run it on the
-  target PC, then either:
-  - turn on *Options → Remote Web Server* (default port 8085) and enter that port in the
-    machine editor (recommended), or
-  - leave the port at 0 and let the app read its WMI sensors (LibreHardwareMonitor must be running).
-- **NVIDIA GPUs**: extra detail (utilisation, temperature, power) comes from `nvidia-smi.exe`,
-  which ships with the NVIDIA driver.
-- **[WireGuard for Windows](https://www.wireguard.com/install/)** (installed in
-  `C:\Program Files\WireGuard`) if you want to manage tunnels on that PC.
-- **Remote Desktop** enabled on the target for the RDP quick-connect button (the app hands off to
-  whichever RDP client is installed on your Mac, e.g. Microsoft's "Windows App").
-
-### Linux machines (Debian/Ubuntu, Raspberry Pi OS, Arch)
-
-Extra pages appear automatically when the matching tool is found on the host:
-
-| Page | Needs on the host |
-|---|---|
-| Containers | `docker` |
-| GPU | `nvidia-smi` (NVIDIA driver) |
-| VMs | `virsh` (libvirt/KVM) |
-| Pi-hole | `pihole`; for Pi-hole v6 also enter the web password in the machine editor |
-| PiKVM | the `kvmd` service |
-| Tailscale | `tailscale` |
-| Raspberry Pi telemetry | `vcgencmd` |
-| VPN | `wg-quick` (WireGuard tools); optionally `protonvpn-cli` |
-| Updates | `apt` or `pacman` |
-
-### TrueNAS SCALE
-
-- **API access (required)**: the app connects to the middleware over WebSocket. Use a TrueNAS
-  user/password, or better an **API key** (*Credentials → Local Users → API Keys*). Self-signed
-  certificates are pinned on first connect.
-- **SSH (optional)**: needed for VM stats, Containers (Docker) and the Console. Enable the SSH
-  service in TrueNAS with password login for the chosen user, who also needs sudo.
-- **Fan control (optional)**: the Fan page talks to a separate, self-hosted **`fanctl`**
-  container on the NAS, which is not part of this repo or of TrueNAS. It is a small Python
-  controller with a web UI that reads drive, NVMe and CPU temperatures and sets the fan PWM
-  from a custom curve. It serves `/api/status` and `/api/config` on port **9595** (the app's
-  default; change it in the machine editor if you map a different port). The stock container
-  has no authentication, so leave the password blank and keep the port LAN-only; the app
-  sends HTTP Basic auth (user `admin`) only if you enter a password.
-
-  The original setup targets an **ASUSTOR AS5404T**, whose ITE IT8625E fan chip isn't
-  supported by TrueNAS's built-in `it87` driver. That needs:
-  - the out-of-tree [`asustor-platform-driver`](https://github.com/mafredri/asustor-platform-driver)
-    kernel module (`asustor_it87`), built against your TrueNAS kernel headers and reloaded
-    after TrueNAS kernel updates;
-  - the `fanctl` image, run `--privileged` (it writes `/sys/class/hwmon/.../pwm1`) with a
-    data volume for `config.json`;
-  - a post-init script that reloads the driver and starts the container at boot.
-
-  Other hardware needs its own driver and a controller exposing the same API, otherwise the
-  Fan page shows an error.
-- **VPN**: the containerised WireGuard option needs SSH plus Docker on the NAS.
-
-### OPNsense
-
-- Create an **API key and secret** under *System → Access → Users → (your user)*. No SSH
-  needed; the app uses OPNsense's REST API over HTTP(S). Tick "Allow self-signed certificate"
-  if you use OPNsense's default certificate.
-
-### macOS machines (as a managed target)
-
-- Enable **Remote Login** in *System Settings → General → Sharing*.
-- **Screen Sharing** (built into every Mac) powers the quick-connect button.
-- Optional: `docker`, `tailscale`, and Homebrew `wireguard-tools` for the matching pages and
-  update checks.
-
-### Wake-on-LAN
-
-Enter the target's MAC address in the machine editor. Wake-on-LAN must be enabled in the
-target's BIOS/OS, and the Mac running the app must be on the same LAN.
+See the [release notes](../../releases) for details.
 
 ## Building from source
 

@@ -3,14 +3,18 @@ import SwiftUI
 @main
 struct HomeLabManagementApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = AppModel()
+    @State private var model = AppModel.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 820, minHeight: 560)
-                .onAppear { model.startAll() }
+                .onAppear {
+                    model.startAll()
+                    MenuBar.openMainWindow = { openWindow(id: "main") }
+                }
         }
         .windowResizability(.contentSize)
         .commands {

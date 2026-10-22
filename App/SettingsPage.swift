@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsPage: View {
     @AppStorage("openAtLogin") private var openAtLogin = false
     @AppStorage("openMinimized") private var openMinimized = false
+    @AppStorage("openInMenuBar") private var openInMenuBar = false
     @AppStorage("notifications") private var notifications = true
     @AppStorage("alertStoragePct") private var storagePct = 85.0
     @AppStorage("alertMemPct") private var memPct = 92.0
@@ -21,8 +22,12 @@ struct SettingsPage: View {
                             loginItemError = nil
                         }
                     }
+                // The two start modes exclude each other: turning one on turns the other off.
                 Toggle("Open Minimized", isOn: $openMinimized)
-                Text("When on, HomeLab Management starts minimized to the Dock instead of opening a window right away.")
+                    .onChange(of: openMinimized) { _, on in if on { openInMenuBar = false } }
+                Toggle("Open in Menu Bar", isOn: $openInMenuBar)
+                    .onChange(of: openInMenuBar) { _, on in if on { openMinimized = false } }
+                Text("Open Minimized starts minimized to the Dock; Open in Menu Bar starts with no window or Dock icon, just the menu bar item. Only one can be on.")
                     .font(.caption).foregroundStyle(.secondary)
                 if let loginItemError {
                     Text(loginItemError).font(.caption).foregroundStyle(.orange)
@@ -39,7 +44,7 @@ struct SettingsPage: View {
         }
         .formStyle(.grouped)
         .padding(20)
-        .frame(width: 460, height: 420)
+        .frame(width: 460, height: 470)
         .onAppear { openAtLogin = LoginItem.isEnabled }
     }
 }

@@ -1,16 +1,24 @@
 import AppKit
 import ServiceManagement
 
-/// Minimizes the main window right after launch when "Open Minimized" is on, and nothing else —
-/// closing the window already keeps the app running in the Dock (standard macOS app lifecycle),
-/// so there's no separate "quit on close" behavior to manage here.
+/// Minimizes the main window right after launch when "Open Minimized" is on, and hosts the menu bar item
+/// (see MenuBar.swift) that keeps the app running after the window is closed.
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var menuBar: MenuBar?
+
+    // Closing the window leaves the app running in the menu bar; Quit lives in that item's menu.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        menuBar = MenuBar(model: .shared)
         Notifier.requestAuthorization()
         Task { try? await Task.sleep(for: .seconds(5)); await UpdateCheck.presentResult(verbose: false) }
-        guard UserDefaults.standard.bool(forKey: "openMinimized") else { return }
+        let d = UserDefaults.standard
+        guard d.bool(forKey: "openMinimized") || d.bool(forKey: "openInMenuBar") else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            NSApp.windows.forEach { $0.miniaturize(nil) }
+            // Closing (not minimizing) is what drops the Dock icon and leaves only the menu bar item.
+            NSApp.windows.filter(\.canBecomeMain).forEach { d.bool(forKey: "openInMenuBar") ? $0.close() : $0.miniaturize(nil) }
         }
     }
 }
